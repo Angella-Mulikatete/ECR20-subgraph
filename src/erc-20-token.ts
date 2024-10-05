@@ -76,3 +76,10 @@ export function handleApproval(event: Approval): void {
   approval.save();
 }
 
+
+// Build completed: QmQqfrCo8WURz19H1kGzKgj1enqz58MzRVTjhRddh6vt5h
+
+// Deployed to https://thegraph.com/studio/subgraph/erc20
+
+// Subgraph endpoints:
+// Queries (HTTP):     https://api.studio.thegraph.com/query/90773/erc20/v0.0.1
