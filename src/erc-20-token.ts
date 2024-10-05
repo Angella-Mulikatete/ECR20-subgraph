@@ -1,35 +1,78 @@
+import { BigInt } from "@graphprotocol/graph-ts";
 import {
-  Approval as ApprovalEvent,
-  Transfer as TransferEvent
+  Approval ,
+  Transfer 
 } from "../generated/ERC20Token/ERC20Token"
-import { Approval, Transfer } from "../generated/schema"
+import { Balance , Approval as ApprovalEntity} from "../generated/schema"
+import { loadOrCreateToken, loadOrCreateUser } from "./utils"
 
-export function handleApproval(event: ApprovalEvent): void {
-  let entity = new Approval(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  )
-  entity.owner = event.params.owner
-  entity.spender = event.params.spender
-  entity.amount = event.params.amount
 
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
 
-  entity.save()
+// Handler for Transfer events
+export function handleTransfer(event: Transfer): void {
+  let sender = loadOrCreateUser(event.params.from.toHexString());
+  let recipient = loadOrCreateUser(event.params.to.toHexString());
+  let token = loadOrCreateToken(event.address.toHexString());
+
+  let senderBalanceId = event.params.from
+    .toHexString()
+    .concat("-")
+    .concat(event.address.toHexString());
+
+  let senderBalance = Balance.load(senderBalanceId);
+  if (senderBalance == null) {
+    senderBalance = new Balance(senderBalanceId);
+    senderBalance.user = sender.id;
+    senderBalance.token = token.id;
+    senderBalance.balance = BigInt.fromI32(0); 
+  }
+  senderBalance.balance = senderBalance.balance.minus(event.params.amount);
+  senderBalance.timestamp = event.block.timestamp;
+  senderBalance.transactionHash = event.transaction.hash;
+  senderBalance.save();
+
+  // Update recipient's balance
+  let recipientBalanceId = event.params.to
+    .toHexString()
+    .concat("-")
+    .concat(event.address.toHexString());
+
+  let recipientBalance = Balance.load(recipientBalanceId);
+  if (recipientBalance == null) {
+    recipientBalance = new Balance(recipientBalanceId);
+    recipientBalance.user = recipient.id;
+    recipientBalance.token = token.id;
+    recipientBalance.balance = BigInt.fromI32(0); // Initialize balance
+  }
+  recipientBalance.balance = recipientBalance.balance.plus(event.params.amount);
+  recipientBalance.timestamp = event.block.timestamp;
+  recipientBalance.transactionHash = event.transaction.hash;
+  recipientBalance.save();
 }
 
-export function handleTransfer(event: TransferEvent): void {
-  let entity = new Transfer(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  )
-  entity.from = event.params.from
-  entity.to = event.params.to
-  entity.amount = event.params.amount
+export function handleApproval(event: Approval): void {
+  let owner = loadOrCreateUser(event.params.owner.toHexString());
+  let spender = loadOrCreateUser(event.params.spender.toHexString());
+  let token = loadOrCreateToken(event.address.toHexString());
 
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
+  // Create a unique identifier for the approval (owner + spender + token)
+  let approvalId = event.params.owner
+    .toHexString()
+    .concat("-")
+    .concat(event.params.spender.toHexString())
+    .concat("-")
+    .concat(event.address.toHexString());
 
-  entity.save()
+  let approval = ApprovalEntity.load(approvalId);
+  if (approval == null) {
+    approval = new ApprovalEntity(approvalId);
+    approval.owner = owner.id;
+    approval.spender = spender.id;
+    approval.token = token.id;
+  }
+  approval.amount = event.params.amount;
+  approval.timestamp = event.block.timestamp;
+  approval.transactionHash = event.transaction.hash;
+  approval.save();
 }
+
